@@ -1,2 +1,2 @@
 main:
-	gcc main.c -o cfs
+	gcc main.c -o cfs -pthread
