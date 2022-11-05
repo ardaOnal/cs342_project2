@@ -6,52 +6,36 @@
 #include "commonDefs.c"
 
 struct Node{
-    struct PCB pcb;
+    struct PCB* pcb;
     struct Node* next;
 };
 
-void insert( struct Node** head, struct PCB pcb){
+void insert( struct Node** head, struct PCB* pcb){
     struct Node* newNode = malloc(sizeof(struct Node));
-    
-    newNode->pcb.cv = pcb.cv;
-    newNode->pcb.pid = pcb.pid;
-    newNode->pcb.processLength = pcb.processLength;
-    newNode->pcb.threadId = pcb.threadId;
-    newNode->pcb.totalTimeSpent = pcb.totalTimeSpent;
-    newNode->pcb.priority = pcb.priority;
+
+    newNode->pcb = pcb;
 
     newNode->next = *head;
     *head = newNode;
 }
 
-int getMin( struct Node* head, struct PCB* pcb){
+int getMin( struct Node* head, struct PCB** pcb){
     struct Node* cur = head;
     if(!head)
         return -1;
     int minIndex = 1;
-    int min = head->pcb.priority;
+    int min = head->pcb->priority;
 
-    pcb->cv = cur->pcb.cv;
-    pcb->pid = cur->pcb.pid;
-    pcb->processLength = cur->pcb.processLength;
-    pcb->threadId = cur->pcb.threadId;
-    pcb->totalTimeSpent = cur->pcb.totalTimeSpent;
-    pcb->priority = cur->pcb.priority;
-
+    *pcb = cur->pcb;
     
     int curIndex = 1;
+
     while( cur){
-        if(cur->pcb.priority < min){
-            min = cur->pcb.priority;
+        if(cur->pcb->priority < min){
+            min = cur->pcb->priority;
             minIndex = curIndex;
         
-            pcb->cv = cur->pcb.cv;
-            pcb->pid = cur->pcb.pid;
-            pcb->processLength = cur->pcb.processLength;
-            pcb->threadId = cur->pcb.threadId;
-            pcb->totalTimeSpent = cur->pcb.totalTimeSpent;
-            pcb->priority = cur->pcb.priority;
-
+            *pcb = cur->pcb;
         }
         curIndex++;
         cur = cur->next;
@@ -84,6 +68,8 @@ int deleteNode(struct Node** head, int index){
         prev->next = cur->next;
     }
     cur->next = NULL;
+    pthread_cond_destroy(&(cur->pcb->cv));
+    free(cur->pcb);
     free(cur);
     cur = NULL;
     return 1;
@@ -93,7 +79,7 @@ int deleteNode(struct Node** head, int index){
 
 void printList( struct Node* head){
     while(head){
-        printf("%d ->", head->pcb.priority);
+        printf("%d ->", head->pcb->priority);
         head = head->next;
     }
     printf("\n");

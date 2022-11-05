@@ -17,13 +17,30 @@ static const int prio_to_weight[40] = {
 };
 
 struct Node* runqueue = NULL;
+pthread_mutex_t mutex_lock;
 int runqueueSize = 0;
+int counter = 0;
 
 
 
 void* processThread( void* arg_ptr){
 
     printf("In pthread: %ld\n", pthread_self());
+
+    struct PCB* pcb = malloc(sizeof(struct PCB));
+    pthread_cond_init(&pcb->cv, NULL);
+    pcb->pid = ((struct processThreadArgs *) arg_ptr)->pid;
+    pcb->priority = ((struct processThreadArgs *) arg_ptr)->priority;
+    pcb->processLength = ((struct processThreadArgs *) arg_ptr)->processLength;
+    pcb->totalTimeSpent = 0;
+
+    pthread_mutex_lock(&mutex_lock);
+    insert(&runqueue, pcb);
+    printList(runqueue);
+    pthread_mutex_unlock(&mutex_lock);
+
+    
+    
 }
 
 void* generatorThread(void* arg_ptr){
@@ -43,6 +60,11 @@ void* generatorThread(void* arg_ptr){
     pthread_t processThreadIds[plCount];
     for(int i = 0; i < plCount; i++){
         struct processThreadArgs processThreadArgs;
+        processThreadArgs.pid = i+1;
+        processThreadArgs.priority = priorityValues[i];
+        processThreadArgs.processLength = processLengths[i];
+        processThreadArgs.totalTimeSpent = 0;
+
         int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
 
         if( ret){
@@ -117,7 +139,7 @@ int main(int argc, char* argv[]){
             FILE* fp;
             char * line = NULL;
             size_t len = 0;
-
+            /*
             fp = fopen(INFILE, "r");
 
             if (fp == NULL)
@@ -133,6 +155,7 @@ int main(int argc, char* argv[]){
                     lineNumber = lineNumber + 1;
 
             fclose(fp);
+            */
             fp = fopen(INFILE, "r");
 
             if (fp == NULL)
@@ -141,18 +164,18 @@ int main(int argc, char* argv[]){
                 return 0;
             }
             
-            lineNumber = lineNumber + 1;
-            char type[10]; // PL or IAT
+            //lineNumber = lineNumber + 1;
+            char type[20]; // PL or IAT
             int value1;
             int value2;
             int lineInt = fscanf(fp,"%s %d %d",type,&value1,&value2);
 
             // Values as arrays from input file
-            int processLengths[(lineNumber+1)/2 ];
+            int processLengths[ALLP ];
             int plCount = 0;
-            int priorityValues[(lineNumber+1)/2];
+            int priorityValues[ALLP];
             int pvCount = 0;
-            int interarrivalTimes[(lineNumber-1)/2];
+            int interarrivalTimes[ALLP-1];
             int iaCount = 0;
 
             while(lineInt != -1)  {
@@ -171,16 +194,16 @@ int main(int argc, char* argv[]){
             }
 
             printf("\nResults in Array:\n");
-            for ( int i = 0; i < (lineNumber+1)/2;i++) {
+            for ( int i = 0; i < ALLP;i++) {
                 printf("PL %d %d %d\n",i,processLengths[i],priorityValues[i]);
-                if( i != (lineNumber+1)/2 - 1)
+                if( i != ALLP - 1)
                     printf("IAT %d %d\n",i,interarrivalTimes[i]);
 
             }
             
 
             
-            printf("\nThe file %s has %d lines\n", INFILE, lineNumber);
+            printf("\nThe file %s has %d processes\n", INFILE, ALLP);
             fclose(fp);
             
             struct generatorArgs generator_args;
@@ -199,51 +222,6 @@ int main(int argc, char* argv[]){
             pthread_join(thr_id[0], NULL);
             
 
-            /*
-            struct PCB myPcb;
-            myPcb.priority = 12;
-
-            struct PCB myPcb1;
-            myPcb1.priority = 16;
-
-            struct PCB myPcb2;
-            myPcb2.priority = 1;
-
-            struct PCB myPcb3;
-            myPcb3.priority = 20;
-
-            struct PCB myPcb4;
-            myPcb4.priority = -2;
-
-            struct PCB myPcb5;
-            myPcb5.priority = -200;
-
-            struct Node* head = NULL;
-
-
-            insert(&head, myPcb);
-            insert(&head, myPcb1);
-            insert(&head, myPcb2);
-            insert(&head, myPcb5);
-            insert(&head, myPcb3);
-            insert(&head, myPcb4);
-        
-            
-            printList(head);
-
-
-            struct PCB minPcb;
-            int myMinIndexFornow = getMin(head, &minPcb);
-
-            printf("Index: %d, Min priority: %d\n", myMinIndexFornow, minPcb.priority);
-
-            printList(head);
-
-            deleteNode( &head, myMinIndexFornow);
-
-            printList(head);
-
-            */
 
 
         }

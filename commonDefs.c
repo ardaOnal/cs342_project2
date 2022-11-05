@@ -22,6 +22,8 @@ struct generatorArgs{
 };
 
 struct processThreadArgs{
-
-
+    int pid;
+    int processLength;
+    int totalTimeSpent;
+    int priority;
 };
