@@ -10,6 +10,7 @@ const int MINIMUM_GRANULARITY = 10;
 const int SCHED_LATENCY = 100;
 
 int ALLP;
+int rqLen;
 
 struct Node* runqueue = NULL;
 pthread_mutex_t mutex_lock;
@@ -18,21 +19,23 @@ int finishedProcessCount = 0;
 pthread_cond_t scheduler_cv;
 int counter = 0;
 
+
+
 void* schedulerThread( void* arg_ptr){
     pthread_mutex_lock(&mutex_lock);
     while(finishedProcessCount < ALLP){
         //printf("Scheduler waiting...\n");
-        printList(runqueue);
+        //printList(runqueue);
         pthread_cond_wait(&scheduler_cv, &mutex_lock);
         //printf("Scheduler woken up\n");
         if(runqueue){
             struct PCB* minVruntime;
+            
             getMinCFS(runqueue, &minVruntime);
-
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
-    printf("BİTTİ\n");
+    printf("BİTTİ %d\n", finishedProcessCount);
     pthread_mutex_unlock(&mutex_lock);
 
     
@@ -80,16 +83,19 @@ void* processThread( void* arg_ptr){
         printf("Denom: %f\n", weightDenominator);*/
 
         int timeslice = (prio_to_weight[pcb->priority + 20]) / weightDenominator * SCHED_LATENCY;
-        printf("Timeslice: %d\n", timeslice);
+        //printf("Timeslice: %d\n", timeslice);
         //dequeue
+        printList(runqueue);
         struct Node* dequeuedNode = dequeueNode(&runqueue, findIndexByPid(runqueue, pcb->pid));
         if(timeslice < MINIMUM_GRANULARITY)
             timeslice = MINIMUM_GRANULARITY;
         if(pcb->processLength - pcb->totalTimeSpent < timeslice){
             timeslice = pcb->processLength - pcb->totalTimeSpent;
         }
-        printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
-                                                    timeslice, pcb->processLength, pcb->totalTimeSpent);
+        printf("Timeslice in pid %d is %d\n", pcb->pid, timeslice);
+       
+        //printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
+                                                    //timeslice, pcb->processLength, pcb->totalTimeSpent);
         usleep(timeslice * 1000);
 
         //increment total time spent
@@ -98,8 +104,9 @@ void* processThread( void* arg_ptr){
         //vruntime
         pcb->vruntime = pcb->vruntime + (prio_to_weight[20] / prio_to_weight[pcb->priority + 20] * (double)(timeslice));
 
-
+        
         if( pcb->totalTimeSpent >= pcb->processLength){
+            printf("Process %d is done\n", pcb->pid);
             deleteNode(&dequeuedNode);
             finishedProcessCount++;
             pthread_cond_signal(&scheduler_cv);
@@ -108,13 +115,14 @@ void* processThread( void* arg_ptr){
         else{
             //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
             insert(&runqueue, dequeuedNode->pcb);
+            printList(runqueue);
         }
         pthread_cond_signal(&scheduler_cv);
     }
     
     pthread_mutex_unlock(&mutex_lock);
 
-    printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+    
     
 }
 
@@ -133,21 +141,28 @@ void* generatorThread(void* arg_ptr){
     //         printf("IAT %d %d\n", i, interarrivalTimes[i]);
     // }
     pthread_t processThreadIds[plCount];
-    for(int i = 0; i < plCount; i++){
+    for(int i = 0; i < plCount; ){
         struct processThreadArgs processThreadArgs;
         processThreadArgs.pid = i+1;
         processThreadArgs.priority = priorityValues[i];
         processThreadArgs.processLength = processLengths[i];
         processThreadArgs.totalTimeSpent = 0;
 
-        int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
-
-        if( ret){
-            printf("ERROR creating thread\n");
+        pthread_mutex_lock(&mutex_lock);
+        if( runqueueSize < rqLen){
+            printf("INSERTED\n");
+            int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
+            i++;
+            if( ret){
+                printf("ERROR creating thread\n");
+            }
         }
-        if( i != plCount - 1)
+        pthread_mutex_unlock(&mutex_lock);
+        printf("i: %d\n", i);
+        if( i < plCount - 1)
             usleep(1000 * interarrivalTimes[i]);
     }
+    printf("BURADAYIZ\n");
     pthread_exit(NULL);
     
 }
@@ -180,7 +195,7 @@ int main(int argc, char* argv[]){
             int avgIAT = atoi(argv[9]); 
             int minIAT = atoi(argv[10]);
             int maxIAT = atoi(argv[11]);
-            int rqLen = atoi(argv[12]);
+            rqLen = atoi(argv[12]);
             ALLP = atoi(argv[13]);
             int OUTMODE = atoi(argv[14]);
             char* OUTFILE;
@@ -208,7 +223,7 @@ int main(int argc, char* argv[]){
         // Input file
         else if (argv[1][0] == 'F' ) {
             printf("\nInput file\n");
-            int rqLen = atoi(argv[2]);
+            rqLen = atoi(argv[2]);
             ALLP = atoi(argv[3]);
             int OUTMODE = atoi(argv[4]);
             char* INFILE = argv[5];
