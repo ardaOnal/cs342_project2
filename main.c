@@ -36,6 +36,8 @@ void* schedulerThread( void* arg_ptr){
             struct PCB* minVruntime;
             
             getMinCFS(runqueue, &minVruntime);
+            if(OUTMODE == 3)
+                printf("Process %d is selected for CPU\n", minVruntime->pid);
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
@@ -66,6 +68,8 @@ void* processThread( void* arg_ptr){
 
     //printf("Pid %d arrival time: %f\n", pcb->pid, pcb->arrivalTime);
     pthread_mutex_lock(&mutex_lock);
+    if(OUTMODE == 3)
+        printf("Process %d inserted to runqueue\n", pcb->pid);
     insert(&runqueue, pcb);
     //printList(runqueue);
 
@@ -98,8 +102,20 @@ void* processThread( void* arg_ptr){
        
         //printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
                                                     //timeslice, pcb->processLength, pcb->totalTimeSpent);
+        if(OUTMODE == 2){
+            struct timeval curTime;
+            gettimeofday(&curTime, NULL);
+            float myCurrentTimeForNow = 1000 * ((curTime.tv_sec - programStartTime.tv_sec) + 
+                                                            ((curTime.tv_usec - programStartTime.tv_usec)/1000000.0));
+            printf("%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
+        }
+        if(OUTMODE == 3)
+            printf("Process %d RUNNNING in CPU\n", pcb->pid);
         
         usleep(timeslice * 1000);
+
+        if(OUTMODE == 3)
+            printf("Process %d expired timeslice %d\n", pcb->pid, timeslice);
 
         //increment total time spent
         pcb->totalTimeSpent = pcb->totalTimeSpent + timeslice;
@@ -129,12 +145,15 @@ void* processThread( void* arg_ptr){
         }
         else{
             //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
+            if(OUTMODE == 3)
+                printf("Process %d inserted to runqueue\n", pcb->pid);
             insert(&runqueue, dequeuedNode->pcb);
             //printList(runqueue);
         }
         pthread_cond_signal(&scheduler_cv);
     }
-    
+    if(OUTMODE == 3)
+        printf("Process %d finished\n", pcb->pid);
     pthread_mutex_unlock(&mutex_lock);
 
     
@@ -165,7 +184,8 @@ void* generatorThread(void* arg_ptr){
 
         pthread_mutex_lock(&mutex_lock);
         if( runqueueSize < rqLen){
-            //printf("INSERTED\n");
+            if(OUTMODE == 3)
+                printf("Process %d created\n", processThreadArgs.pid);
             int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
             
             pthread_mutex_unlock(&mutex_lock);
