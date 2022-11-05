@@ -14,6 +14,12 @@ struct PCB{
     pthread_cond_t cv;
     int priority;
     double vruntime;
+
+    int contextSwitch;
+    float arrivalTime;
+    float finishTime;
+    float queueWaitTime;
+
 };
 
 struct generatorArgs{

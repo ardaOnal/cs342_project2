@@ -4,13 +4,14 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "linkedList.c"
-
+#include <sys/time.h>
 
 const int MINIMUM_GRANULARITY = 10;
 const int SCHED_LATENCY = 100;
 
 int ALLP;
 int rqLen;
+int OUTMODE;
 
 struct Node* runqueue = NULL;
 pthread_mutex_t mutex_lock;
@@ -19,6 +20,9 @@ int finishedProcessCount = 0;
 pthread_cond_t scheduler_cv;
 int counter = 0;
 
+struct timeval programStartTime;
+
+struct PCB** finishedProcesses;
 
 
 void* schedulerThread( void* arg_ptr){
@@ -35,7 +39,7 @@ void* schedulerThread( void* arg_ptr){
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
-    printf("BİTTİ %d\n", finishedProcessCount);
+    //printf("BİTTİ %d\n", finishedProcessCount);
     pthread_mutex_unlock(&mutex_lock);
 
     
@@ -43,7 +47,7 @@ void* schedulerThread( void* arg_ptr){
 
 void* processThread( void* arg_ptr){
 
-    printf("In pthread: %ld\n", pthread_self());
+    //printf("In pthread: %ld\n", pthread_self());
 
     struct PCB* pcb = malloc(sizeof(struct PCB));
 
@@ -54,6 +58,13 @@ void* processThread( void* arg_ptr){
     pcb->totalTimeSpent = 0;
     pcb->vruntime = 0;
 
+    pcb->contextSwitch = -1;
+
+    struct timeval threadStart;
+    gettimeofday(&threadStart, NULL);
+    pcb->arrivalTime = 1000 * ((threadStart.tv_sec - programStartTime.tv_sec) + ((threadStart.tv_usec - programStartTime.tv_usec)/1000000.0));
+
+    //printf("Pid %d arrival time: %f\n", pcb->pid, pcb->arrivalTime);
     pthread_mutex_lock(&mutex_lock);
     insert(&runqueue, pcb);
     //printList(runqueue);
@@ -61,18 +72,6 @@ void* processThread( void* arg_ptr){
     //printf("Wake up signal sent to scheduler due to insert\n");
     pthread_cond_signal(&scheduler_cv);
 
-
-    // if ( counter == 2) {
-    //     struct Node* dequeuedNode = dequeueNode(&runqueue, 2);
-    //     printf("After dequeue:");
-    //     printList(runqueue);
-    //     printf("Dequeued Node pid %d\n", dequeuedNode->pcb->pid);
-    //     insert(&runqueue,dequeuedNode->pcb);
-    //     printf("After insert:");
-    //     printList(runqueue);
-    // }
-    // counter++;
-    
     while(pcb->totalTimeSpent < pcb->processLength){
         pthread_cond_wait(&(pcb->cv), &(mutex_lock));
         
@@ -83,9 +82,12 @@ void* processThread( void* arg_ptr){
         printf("Denom: %f\n", weightDenominator);*/
 
         int timeslice = (prio_to_weight[pcb->priority + 20]) / weightDenominator * SCHED_LATENCY;
-        //printf("Timeslice: %d\n", timeslice);
-        //dequeue
-        printList(runqueue);
+        //printf("Timeslice: %d in pid: %d\n", timeslice, pcb->pid);
+
+        //dequeue process
+
+        //printList(runqueue);
+
         struct Node* dequeuedNode = dequeueNode(&runqueue, findIndexByPid(runqueue, pcb->pid));
         if(timeslice < MINIMUM_GRANULARITY)
             timeslice = MINIMUM_GRANULARITY;
@@ -96,19 +98,32 @@ void* processThread( void* arg_ptr){
        
         //printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
                                                     //timeslice, pcb->processLength, pcb->totalTimeSpent);
+        
         usleep(timeslice * 1000);
 
         //increment total time spent
         pcb->totalTimeSpent = pcb->totalTimeSpent + timeslice;
+        pcb->contextSwitch = pcb->contextSwitch + 1;
 
         //vruntime
         pcb->vruntime = pcb->vruntime + (prio_to_weight[20] / prio_to_weight[pcb->priority + 20] * (double)(timeslice));
 
         
         if( pcb->totalTimeSpent >= pcb->processLength){
-            printf("Process %d is done\n", pcb->pid);
-            deleteNode(&dequeuedNode);
+            
+            //deleteNode(&dequeuedNode);
             finishedProcessCount++;
+
+            struct timeval threadFinish;
+            gettimeofday(&threadFinish, NULL);
+            pcb->finishTime = 1000 * ((threadFinish.tv_sec - programStartTime.tv_sec) + 
+                                                            ((threadFinish.tv_usec - programStartTime.tv_usec)/1000000.0));
+            pcb->queueWaitTime = pcb->finishTime - pcb->arrivalTime - pcb->totalTimeSpent;
+            //printf("Process %d is done at time: %f with cs: %d\n", pcb->pid, pcb->finishTime, pcb->contextSwitch);
+
+            finishedProcesses[pcb->pid - 1] = pcb;
+            
+            //insert(&finishedProcesses, dequeuedNode->pcb);
             pthread_cond_signal(&scheduler_cv);
             break;
         }
@@ -150,7 +165,7 @@ void* generatorThread(void* arg_ptr){
 
         pthread_mutex_lock(&mutex_lock);
         if( runqueueSize < rqLen){
-            printf("INSERTED\n");
+            //printf("INSERTED\n");
             int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
             
             pthread_mutex_unlock(&mutex_lock);
@@ -166,7 +181,7 @@ void* generatorThread(void* arg_ptr){
             usleep(1000 * interarrivalTimes[i-1]);
         }   
     }
-    printf("BURADAYIZ\n");
+    //printf("BURADAYIZ\n");
     pthread_exit(NULL);
     
 }
@@ -175,7 +190,7 @@ int main(int argc, char* argv[]){
     if ( argc > 5) {
 
 
-
+        gettimeofday(&programStartTime, NULL);
 
 
         pthread_mutex_init(&mutex_lock, NULL);
@@ -188,6 +203,8 @@ int main(int argc, char* argv[]){
 
 
         // Command Line
+
+        //ALLP kadar MALLOC YAPMAYI UNUTMA!!!!!!!!!!!
         if ( argv[1][0] == 'C') {
             int minPrio = atoi(argv[2]);
             int maxPrio = atoi(argv[3]);
@@ -201,7 +218,7 @@ int main(int argc, char* argv[]){
             int maxIAT = atoi(argv[11]);
             rqLen = atoi(argv[12]);
             ALLP = atoi(argv[13]);
-            int OUTMODE = atoi(argv[14]);
+            OUTMODE = atoi(argv[14]);
             char* OUTFILE;
             if ( argc == 16) OUTFILE = argv[15];
             
@@ -226,44 +243,29 @@ int main(int argc, char* argv[]){
         } 
         // Input file
         else if (argv[1][0] == 'F' ) {
-            printf("\nInput file\n");
+            //printf("\nInput file\n");
             rqLen = atoi(argv[2]);
             ALLP = atoi(argv[3]);
-            int OUTMODE = atoi(argv[4]);
+            OUTMODE = atoi(argv[4]);
             char* INFILE = argv[5];
             char* OUTFILE;
             if ( argc == 7) OUTFILE = argv[6];
 
+            //ALLP kadar MALLOC
 
+            finishedProcesses = malloc(sizeof(struct PCB*) * ALLP);
+            /*
             printf("File input\n");
             printf("Arguments:\n");
             printf("rqLen %d\n", rqLen);
             printf("ALLP %d\n", ALLP);
             printf("OUTMODE %d\n", OUTMODE);
-            printf("INFILE %s\n", INFILE);
+            printf("INFILE %s\n", INFILE);*/
             if ( argc == 7) printf("OUTFILE %s\n", OUTFILE);
 
 
             FILE* fp;
             char * line = NULL;
-            size_t len = 0;
-            /*
-            fp = fopen(INFILE, "r");
-
-            if (fp == NULL)
-            {
-                printf("Could not open file %s", INFILE);
-                return 0;
-            }
-
-            char c;
-            int lineNumber = 0;
-            for (c = getc(fp); c != EOF; c = getc(fp))
-                if (c == '\n') // Increment count if this character is newline
-                    lineNumber = lineNumber + 1;
-
-            fclose(fp);
-            */
             fp = fopen(INFILE, "r");
 
             if (fp == NULL)
@@ -301,17 +303,17 @@ int main(int argc, char* argv[]){
                 lineInt = fscanf(fp,"%s %d %d",type,&value1,&value2);
             }
 
-            printf("\nResults in Array:\n");
+            /*printf("\nResults in Array:\n");
             for ( int i = 0; i < ALLP;i++) {
                 printf("PL %d %d %d\n",i,processLengths[i],priorityValues[i]);
                 if( i != ALLP - 1)
                     printf("IAT %d %d\n",i,interarrivalTimes[i]);
 
-            }
+            }*/
             
 
             
-            printf("\nThe file %s has %d processes\n", INFILE, ALLP);
+            //printf("\nThe file %s has %d processes\n", INFILE, ALLP);
             fclose(fp);
             
             struct generatorArgs generator_args;
@@ -336,6 +338,16 @@ int main(int argc, char* argv[]){
 
             pthread_join(thr_id[0], NULL);
             pthread_join(thr_id[1], NULL);
+            float totalWaitingTime = 0;
+            printf("%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
+            for(int i = 0; i < ALLP; i++){
+                struct PCB* curPCB = finishedProcesses[i];
+                printf("%5d %15f %15f %5d %8d %15f %15f %10d\n",
+                            curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
+                            curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
+                totalWaitingTime = totalWaitingTime + curPCB->queueWaitTime;
+            }
+            printf("avg waiting time: %f\n", totalWaitingTime / ALLP);
             
 
 
