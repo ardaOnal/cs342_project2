@@ -5,23 +5,32 @@
 #include <unistd.h>
 #include "linkedList.c"
 
-static const int prio_to_weight[40] = {
-/* -20 */ 88761, 71755, 56483, 46273, 36291,
-/* -15 */ 29154, 23254, 18705, 14949, 11916,
-/* -10 */ 9548, 7620, 6100, 4904, 3906,
-/* -5 */ 3121, 2501, 1991, 1586, 1277,
-/* 0 */ 1024, 820, 655, 526, 423,
-/* 5 */ 335, 272, 215, 172, 137,
-/* 10 */ 110, 87, 70, 56, 45,
-/* 15 */ 36, 29, 23, 18, 15,
-};
+
+const int MINIMUM_GRANULARITY = 10;
+const int SCHED_LATENCY = 100;
+
+int ALLP;
 
 struct Node* runqueue = NULL;
 pthread_mutex_t mutex_lock;
-int runqueueSize = 0;
+
+int finishedProcessCount = 0;
+pthread_cond_t scheduler_cv;
 int counter = 0;
 
+void* schedulerThread( void* arg_ptr){
+    pthread_mutex_lock(&mutex_lock);
+    while(finishedProcessCount < ALLP){
+        printf("Scheduler waiting...\n");
+        pthread_cond_wait(&scheduler_cv, &mutex_lock);
+        printf("Scheduler woken up\n");
+        pthread_cond_signal(&(runqueue->pcb->cv));
+    }
+        
+    pthread_mutex_unlock(&mutex_lock);
 
+    
+}
 
 void* processThread( void* arg_ptr){
 
@@ -37,9 +46,49 @@ void* processThread( void* arg_ptr){
     pthread_mutex_lock(&mutex_lock);
     insert(&runqueue, pcb);
     printList(runqueue);
+
+    printf("Wake up signal sent to scheduler due to insert\n");
+    pthread_cond_signal(&scheduler_cv);
+
+
+    // if ( counter == 2) {
+    //     struct Node* dequeuedNode = dequeueNode(&runqueue, 2);
+    //     printf("After dequeue:");
+    //     printList(runqueue);
+    //     printf("Dequeued Node pid %d\n", dequeuedNode->pcb->pid);
+    //     insert(&runqueue,dequeuedNode->pcb);
+    //     printf("After insert:");
+    //     printList(runqueue);
+    // }
+    // counter++;
+    
+    while(pcb->totalTimeSpent < pcb->processLength){
+        pthread_cond_wait(&(pcb->cv), &(mutex_lock));
+        
+        int weightDenominator = getAllWeights(runqueue);
+        int timeslice = prio_to_weight[pcb->priority + 20] / weightDenominator * SCHED_LATENCY;
+        struct Node* dequeuedNode = dequeueNode(&runqueue, findIndexByPid(runqueue, pcb->pid));
+        if(timeslice < MINIMUM_GRANULARITY)
+            timeslice = MINIMUM_GRANULARITY;
+        if(pcb->processLength - pcb->totalTimeSpent < timeslice){
+            timeslice = pcb->processLength - pcb->totalTimeSpent;
+        }
+        usleep(timeslice * 1000);
+        pcb->totalTimeSpent = pcb->totalTimeSpent + timeslice;
+        if( pcb->totalTimeSpent >= pcb->processLength){
+            deleteNode(&dequeuedNode);
+            break;
+        }
+        else{
+            //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
+            insert(&runqueue, dequeuedNode->pcb);
+        }
+        pthread_cond_signal(&scheduler_cv);
+    }
+    
     pthread_mutex_unlock(&mutex_lock);
 
-    
+    printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
     
 }
 
@@ -52,11 +101,11 @@ void* generatorThread(void* arg_ptr){
     int plCount = ((struct generatorArgs *) arg_ptr)->plCount;
     int* interarrivalTimes = ((struct generatorArgs *) arg_ptr)->interarrivalTimes;
 
-    for(int i = 0; i < plCount; i++){
-        printf("PL %d %d %d\n", i, processLengths[i], priorityValues[i]);
-        if( i != plCount - 1)
-            printf("IAT %d %d\n", i, interarrivalTimes[i]);
-    }
+    // for(int i = 0; i < plCount; i++){
+    //     printf("PL %d %d %d\n", i, processLengths[i], priorityValues[i]);
+    //     if( i != plCount - 1)
+    //         printf("IAT %d %d\n", i, interarrivalTimes[i]);
+    // }
     pthread_t processThreadIds[plCount];
     for(int i = 0; i < plCount; i++){
         struct processThreadArgs processThreadArgs;
@@ -79,6 +128,20 @@ void* generatorThread(void* arg_ptr){
 
 int main(int argc, char* argv[]){ 
     if ( argc > 5) {
+
+
+
+
+
+        pthread_mutex_init(&mutex_lock, NULL);
+        pthread_cond_init(&scheduler_cv, NULL);
+
+
+
+
+
+
+
         // Command Line
         if ( argv[1][0] == 'C') {
             int minPrio = atoi(argv[2]);
@@ -92,7 +155,7 @@ int main(int argc, char* argv[]){
             int minIAT = atoi(argv[10]);
             int maxIAT = atoi(argv[11]);
             int rqLen = atoi(argv[12]);
-            int ALLP = atoi(argv[13]);
+            ALLP = atoi(argv[13]);
             int OUTMODE = atoi(argv[14]);
             char* OUTFILE;
             if ( argc == 16) OUTFILE = argv[15];
@@ -120,7 +183,7 @@ int main(int argc, char* argv[]){
         else if (argv[1][0] == 'F' ) {
             printf("\nInput file\n");
             int rqLen = atoi(argv[2]);
-            int ALLP = atoi(argv[3]);
+            ALLP = atoi(argv[3]);
             int OUTMODE = atoi(argv[4]);
             char* INFILE = argv[5];
             char* OUTFILE;
@@ -213,13 +276,21 @@ int main(int argc, char* argv[]){
             generator_args.plCount = plCount;
             
             pthread_t thr_id[2];
-            int ret = pthread_create(&thr_id[0], NULL, generatorThread, (void*) &generator_args);
+            int ret = pthread_create(&thr_id[0], NULL, schedulerThread, (void*) NULL);
 
             if( ret){
-                printf("ERROR creating thread\n");
+                printf("ERROR creating schedular thread\n");
+            }
+            ret = pthread_create(&thr_id[1], NULL, generatorThread, (void*) &generator_args);
+
+            if( ret){
+                printf("ERROR creating generator thread\n");
             }
 
+            
+
             pthread_join(thr_id[0], NULL);
+            pthread_join(thr_id[1], NULL);
             
 
 

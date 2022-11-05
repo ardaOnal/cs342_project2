@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 
+
 struct PCB{
     int pid;
     pthread_t threadId;
@@ -26,4 +27,9 @@ struct processThreadArgs{
     int processLength;
     int totalTimeSpent;
     int priority;
+};
+
+
+struct schedulerThreadArgs{
+
 };

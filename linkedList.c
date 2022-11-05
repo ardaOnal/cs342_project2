@@ -5,6 +5,18 @@
 #include <unistd.h>
 #include "commonDefs.c"
 
+static const int prio_to_weight[40] = {
+/* -20 */ 88761, 71755, 56483, 46273, 36291,
+/* -15 */ 29154, 23254, 18705, 14949, 11916,
+/* -10 */ 9548, 7620, 6100, 4904, 3906,
+/* -5 */ 3121, 2501, 1991, 1586, 1277,
+/* 0 */ 1024, 820, 655, 526, 423,
+/* 5 */ 335, 272, 215, 172, 137,
+/* 10 */ 110, 87, 70, 56, 45,
+/* 15 */ 36, 29, 23, 18, 15,
+};
+int runqueueSize = 0;
+
 struct Node{
     struct PCB* pcb;
     struct Node* next;
@@ -17,6 +29,7 @@ void insert( struct Node** head, struct PCB* pcb){
 
     newNode->next = *head;
     *head = newNode;
+    runqueueSize++;
 }
 
 int getMin( struct Node* head, struct PCB** pcb){
@@ -42,6 +55,14 @@ int getMin( struct Node* head, struct PCB** pcb){
     }
     return minIndex; 
 }
+int getAllWeights(struct Node* head){
+    int sum = 0;
+    while(head){
+        sum = sum + prio_to_weight[head->pcb->priority + 20];
+        head = head->next;
+    }
+    return sum;
+}
 struct Node* find(struct Node* head, int index){
     if(index < 1)
         return NULL;
@@ -52,11 +73,26 @@ struct Node* find(struct Node* head, int index){
         return cur;
     }
 }
-int deleteNode(struct Node** head, int index){
+int findIndexByPid(struct Node* head, int pid){
+    if( pid < 1)
+        return -1;
+    else{
+        struct Node* cur = head;
+        int index = 1;
+        while(cur){
+            if( cur->pcb->pid == pid)
+                return index;
+            index++;
+            cur = cur->next;
+        }
+        return -1;
+    }
+}
+struct Node* dequeueNode(struct Node** head, int index){
     struct Node* cur;
 
     if(index < 1)
-        return -1;
+        return NULL;
 
     if(index == 1){
         cur = *head;
@@ -68,18 +104,23 @@ int deleteNode(struct Node** head, int index){
         prev->next = cur->next;
     }
     cur->next = NULL;
-    pthread_cond_destroy(&(cur->pcb->cv));
-    free(cur->pcb);
-    free(cur);
-    cur = NULL;
-    return 1;
+    runqueueSize--;
+    return cur;
+    
 }   
-
+int deleteNode(struct Node** cur){
+    (*cur)->next = NULL;
+    pthread_cond_destroy(&((*cur)->pcb->cv));
+    free((*cur)->pcb);
+    free(*cur);
+    *cur = NULL;
+    return 1;
+}
 
 
 void printList( struct Node* head){
     while(head){
-        printf("%d ->", head->pcb->priority);
+        printf("%d ->", head->pcb->pid);
         head = head->next;
     }
     printf("\n");
