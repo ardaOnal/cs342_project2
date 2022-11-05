@@ -13,6 +13,7 @@ struct PCB{
     int totalTimeSpent;
     pthread_cond_t cv;
     int priority;
+    double vruntime;
 };
 
 struct generatorArgs{

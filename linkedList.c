@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include "commonDefs.c"
 
-static const int prio_to_weight[40] = {
+static const double prio_to_weight[40] = {
 /* -20 */ 88761, 71755, 56483, 46273, 36291,
 /* -15 */ 29154, 23254, 18705, 14949, 11916,
 /* -10 */ 9548, 7620, 6100, 4904, 3906,
@@ -32,20 +32,20 @@ void insert( struct Node** head, struct PCB* pcb){
     runqueueSize++;
 }
 
-int getMin( struct Node* head, struct PCB** pcb){
+int getMinCFS( struct Node* head, struct PCB** pcb){
     struct Node* cur = head;
     if(!head)
         return -1;
     int minIndex = 1;
-    int min = head->pcb->priority;
+    int min = head->pcb->vruntime;
 
     *pcb = cur->pcb;
     
     int curIndex = 1;
 
     while( cur){
-        if(cur->pcb->priority < min){
-            min = cur->pcb->priority;
+        if(cur->pcb->vruntime < min){
+            min = cur->pcb->vruntime;
             minIndex = curIndex;
         
             *pcb = cur->pcb;
@@ -55,8 +55,8 @@ int getMin( struct Node* head, struct PCB** pcb){
     }
     return minIndex; 
 }
-int getAllWeights(struct Node* head){
-    int sum = 0;
+double getAllWeights(struct Node* head){
+    double sum = 0;
     while(head){
         sum = sum + prio_to_weight[head->pcb->priority + 20];
         head = head->next;

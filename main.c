@@ -21,12 +21,18 @@ int counter = 0;
 void* schedulerThread( void* arg_ptr){
     pthread_mutex_lock(&mutex_lock);
     while(finishedProcessCount < ALLP){
-        printf("Scheduler waiting...\n");
+        //printf("Scheduler waiting...\n");
+        printList(runqueue);
         pthread_cond_wait(&scheduler_cv, &mutex_lock);
-        printf("Scheduler woken up\n");
-        pthread_cond_signal(&(runqueue->pcb->cv));
+        //printf("Scheduler woken up\n");
+        if(runqueue){
+            struct PCB* minVruntime;
+            getMinCFS(runqueue, &minVruntime);
+
+            pthread_cond_signal(&(minVruntime->cv));
+        }       
     }
-        
+    printf("BİTTİ\n");
     pthread_mutex_unlock(&mutex_lock);
 
     
@@ -37,11 +43,13 @@ void* processThread( void* arg_ptr){
     printf("In pthread: %ld\n", pthread_self());
 
     struct PCB* pcb = malloc(sizeof(struct PCB));
+
     pthread_cond_init(&pcb->cv, NULL);
     pcb->pid = ((struct processThreadArgs *) arg_ptr)->pid;
     pcb->priority = ((struct processThreadArgs *) arg_ptr)->priority;
     pcb->processLength = ((struct processThreadArgs *) arg_ptr)->processLength;
     pcb->totalTimeSpent = 0;
+    pcb->vruntime = 0;
 
     pthread_mutex_lock(&mutex_lock);
     insert(&runqueue, pcb);
@@ -65,18 +73,36 @@ void* processThread( void* arg_ptr){
     while(pcb->totalTimeSpent < pcb->processLength){
         pthread_cond_wait(&(pcb->cv), &(mutex_lock));
         
-        int weightDenominator = getAllWeights(runqueue);
-        int timeslice = prio_to_weight[pcb->priority + 20] / weightDenominator * SCHED_LATENCY;
+
+        double weightDenominator = getAllWeights(runqueue);
+        /*printf("Priority: %d ", pcb->priority);
+        printf("Weight: %f ", prio_to_weight[pcb->priority + 20]);
+        printf("Denom: %f\n", weightDenominator);*/
+
+        int timeslice = (prio_to_weight[pcb->priority + 20]) / weightDenominator * SCHED_LATENCY;
+        printf("Timeslice: %d\n", timeslice);
+        //dequeue
         struct Node* dequeuedNode = dequeueNode(&runqueue, findIndexByPid(runqueue, pcb->pid));
         if(timeslice < MINIMUM_GRANULARITY)
             timeslice = MINIMUM_GRANULARITY;
         if(pcb->processLength - pcb->totalTimeSpent < timeslice){
             timeslice = pcb->processLength - pcb->totalTimeSpent;
         }
+        printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
+                                                    timeslice, pcb->processLength, pcb->totalTimeSpent);
         usleep(timeslice * 1000);
+
+        //increment total time spent
         pcb->totalTimeSpent = pcb->totalTimeSpent + timeslice;
+
+        //vruntime
+        pcb->vruntime = pcb->vruntime + (prio_to_weight[20] / prio_to_weight[pcb->priority + 20] * (double)(timeslice));
+
+
         if( pcb->totalTimeSpent >= pcb->processLength){
             deleteNode(&dequeuedNode);
+            finishedProcessCount++;
+            pthread_cond_signal(&scheduler_cv);
             break;
         }
         else{
