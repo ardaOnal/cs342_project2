@@ -120,7 +120,7 @@ int deleteNode(struct Node** cur){
 
 void printList( struct Node* head){
     while(head){
-        printf("%d %f ->", head->pcb->pid, head->pcb->vruntime);
+        printf("%d -> ", head->pcb->pid);
         head = head->next;
     }
     printf("\n");

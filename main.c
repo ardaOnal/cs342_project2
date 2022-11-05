@@ -56,9 +56,9 @@ void* processThread( void* arg_ptr){
 
     pthread_mutex_lock(&mutex_lock);
     insert(&runqueue, pcb);
-    printList(runqueue);
+    //printList(runqueue);
 
-    printf("Wake up signal sent to scheduler due to insert\n");
+    //printf("Wake up signal sent to scheduler due to insert\n");
     pthread_cond_signal(&scheduler_cv);
 
 
@@ -92,7 +92,7 @@ void* processThread( void* arg_ptr){
         if(pcb->processLength - pcb->totalTimeSpent < timeslice){
             timeslice = pcb->processLength - pcb->totalTimeSpent;
         }
-        printf("Timeslice in pid %d is %d\n", pcb->pid, timeslice);
+        //printf("Timeslice in pid %d is %d\n", pcb->pid, timeslice);
        
         //printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
                                                     //timeslice, pcb->processLength, pcb->totalTimeSpent);
@@ -115,7 +115,7 @@ void* processThread( void* arg_ptr){
         else{
             //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
             insert(&runqueue, dequeuedNode->pcb);
-            printList(runqueue);
+            //printList(runqueue);
         }
         pthread_cond_signal(&scheduler_cv);
     }
@@ -152,15 +152,19 @@ void* generatorThread(void* arg_ptr){
         if( runqueueSize < rqLen){
             printf("INSERTED\n");
             int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
+            
+            pthread_mutex_unlock(&mutex_lock);
+            if( i < plCount - 1)
+                usleep(1000 * interarrivalTimes[i]);
             i++;
             if( ret){
                 printf("ERROR creating thread\n");
             }
         }
-        pthread_mutex_unlock(&mutex_lock);
-        printf("i: %d\n", i);
-        if( i < plCount - 1)
-            usleep(1000 * interarrivalTimes[i]);
+        else{
+            pthread_mutex_unlock(&mutex_lock);
+            usleep(1000 * interarrivalTimes[i-1]);
+        }   
     }
     printf("BURADAYIZ\n");
     pthread_exit(NULL);
