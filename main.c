@@ -33,10 +33,7 @@ FILE* fptr = NULL;
 void* schedulerThread( void* arg_ptr){
     pthread_mutex_lock(&mutex_lock);
     while(finishedProcessCount < ALLP){
-        //printf("Scheduler waiting...\n");
-        //printList(runqueue);
         pthread_cond_wait(&scheduler_cv, &mutex_lock);
-        //printf("Scheduler woken up\n");
         if(runqueue){
             struct PCB* minVruntime;
             
@@ -52,15 +49,12 @@ void* schedulerThread( void* arg_ptr){
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
-    //printf("BİTTİ %d\n", finishedProcessCount);
     pthread_mutex_unlock(&mutex_lock);
 
     
 }
 
 void* processThread( void* arg_ptr){
-
-    //printf("In pthread: %ld\n", pthread_self());
 
     struct PCB* pcb = malloc(sizeof(struct PCB));
 
@@ -77,7 +71,6 @@ void* processThread( void* arg_ptr){
     gettimeofday(&threadStart, NULL);
     pcb->arrivalTime = 1000 * ((threadStart.tv_sec - programStartTime.tv_sec) + ((threadStart.tv_usec - programStartTime.tv_usec)/1000000.0));
 
-    //printf("Pid %d arrival time: %f\n", pcb->pid, pcb->arrivalTime);
     pthread_mutex_lock(&mutex_lock);
     if(OUTMODE == 3){
         if(isOutfile == 0)
@@ -87,9 +80,6 @@ void* processThread( void* arg_ptr){
     }
         
     insert(&runqueue, pcb);
-    //printList(runqueue);
-
-    //printf("Wake up signal sent to scheduler due to insert\n");
     pthread_cond_signal(&scheduler_cv);
 
     while(pcb->totalTimeSpent < pcb->processLength){
@@ -97,16 +87,8 @@ void* processThread( void* arg_ptr){
         
 
         double weightDenominator = getAllWeights(runqueue);
-        /*printf("Priority: %d ", pcb->priority);
-        printf("Weight: %f ", prio_to_weight[pcb->priority + 20]);
-        printf("Denom: %f\n", weightDenominator);*/
 
         int timeslice = (prio_to_weight[pcb->priority + 20]) / weightDenominator * SCHED_LATENCY;
-        //printf("Timeslice: %d in pid: %d\n", timeslice, pcb->pid);
-
-        //dequeue process
-
-        //printList(runqueue);
 
         struct Node* dequeuedNode = dequeueNode(&runqueue, findIndexByPid(runqueue, pcb->pid));
         if(timeslice < MINIMUM_GRANULARITY)
@@ -114,10 +96,6 @@ void* processThread( void* arg_ptr){
         if(pcb->processLength - pcb->totalTimeSpent < timeslice){
             timeslice = pcb->processLength - pcb->totalTimeSpent;
         }
-        //printf("Timeslice in pid %d is %d\n", pcb->pid, timeslice);
-       
-        //printf("Pid: %d is sleeping for: %d, process length : %d, totalTimeSpent: %d\n", pcb->pid, 
-                                                    //timeslice, pcb->processLength, pcb->totalTimeSpent);
         if(OUTMODE == 2){
             struct timeval curTime;
             gettimeofday(&curTime, NULL);
@@ -155,7 +133,6 @@ void* processThread( void* arg_ptr){
         
         if( pcb->totalTimeSpent >= pcb->processLength){
             
-            //deleteNode(&dequeuedNode);
             finishedProcessCount++;
 
             struct timeval threadFinish;
@@ -163,16 +140,14 @@ void* processThread( void* arg_ptr){
             pcb->finishTime = 1000 * ((threadFinish.tv_sec - programStartTime.tv_sec) + 
                                                             ((threadFinish.tv_usec - programStartTime.tv_usec)/1000000.0));
             pcb->queueWaitTime = pcb->finishTime - pcb->arrivalTime - pcb->totalTimeSpent;
-            //printf("Process %d is done at time: %f with cs: %d\n", pcb->pid, pcb->finishTime, pcb->contextSwitch);
 
             finishedProcesses[pcb->pid - 1] = pcb;
             
-            //insert(&finishedProcesses, dequeuedNode->pcb);
+            pthread_cond_destroy(&(pcb->cv));
             pthread_cond_signal(&scheduler_cv);
             break;
         }
         else{
-            //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
             if(OUTMODE == 3){
                 if(isOutfile == 0)        
                     printf("Process %d inserted to runqueue\n", pcb->pid);
@@ -181,10 +156,14 @@ void* processThread( void* arg_ptr){
             }
             
             insert(&runqueue, dequeuedNode->pcb);
-            //printList(runqueue);
         }
+        if(dequeuedNode){
+            free(dequeuedNode);
+        }   
         pthread_cond_signal(&scheduler_cv);
     }
+    
+    
     if(OUTMODE == 3){
         if(isOutfile == 0)        
             printf("Process %d finished\n", pcb->pid);
@@ -206,11 +185,6 @@ void* generatorThread(void* arg_ptr){
     int plCount = ((struct generatorArgs *) arg_ptr)->plCount;
     int* interarrivalTimes = ((struct generatorArgs *) arg_ptr)->interarrivalTimes;
 
-    // for(int i = 0; i < plCount; i++){
-    //     printf("PL %d %d %d\n", i, processLengths[i], priorityValues[i]);
-    //     if( i != plCount - 1)
-    //         printf("IAT %d %d\n", i, interarrivalTimes[i]);
-    // }
     pthread_t processThreadIds[plCount];
     for(int i = 0; i < plCount; ){
         struct processThreadArgs processThreadArgs;
@@ -242,7 +216,6 @@ void* generatorThread(void* arg_ptr){
             usleep(1000 * interarrivalTimes[i-1]);
         }   
     }
-    //printf("BURADAYIZ\n");
     pthread_exit(NULL);
     
 }
@@ -259,7 +232,6 @@ int main(int argc, char* argv[]){
 
         // Command Line
 
-        //ALLP kadar MALLOC YAPMAYI UNUTMA!!!!!!!!!!!
         if ( argv[1][0] == 'C') {
             int minPrio = atoi(argv[2]);
             int maxPrio = atoi(argv[3]);
@@ -299,8 +271,6 @@ int main(int argc, char* argv[]){
             printf("OUTMODE %d\n", OUTMODE);
             if ( argc == 16) printf("OUTFILE %s\n", OUTFILE);
 
-            //ALLP kadar MALLOC
-
             finishedProcesses = malloc(sizeof(struct PCB*) * ALLP);
 
             int processLengths[ALLP];
@@ -311,10 +281,6 @@ int main(int argc, char* argv[]){
             for(int i = 0; i < ALLP; i++){
                 priorityValues[i] = (rand() % (maxPrio - minPrio + 1) + minPrio);
             }
-            /*
-            for(int i = 0; i < ALLP; i++){
-                printf("Prio of %d: %d\n", i, priorityValues[i]);
-            }*/
             //PROCESS LENGTH
             if(strcmp(distPL, "fixed") == 0){
                 for(int i = 0; i < ALLP; i++){
@@ -340,10 +306,6 @@ int main(int argc, char* argv[]){
                     processLengths[i] = (int) round(x);
                 }    
             }
-            for(int i = 0; i < ALLP; i++){
-                printf("PL of %d: %d\n",i, processLengths[i]);
-            }
-
 
             //IAT
             if(strcmp(distIAT, "fixed") == 0){
@@ -369,9 +331,6 @@ int main(int argc, char* argv[]){
                     }
                     interarrivalTimes[i] = (int) round(x);
                 }    
-            }
-            for(int i = 0; i < ALLP - 1; i++){
-                printf("IAT %d is: %d\n", i, interarrivalTimes[i]);
             }
 
             
@@ -422,9 +381,13 @@ int main(int argc, char* argv[]){
                 fprintf(fptr, "avg waiting time: %f\n", totalWaitingTime / ALLP);
 
 
-
-
-
+            for(int i = 0; i < ALLP; i++){
+                free(finishedProcesses[i]);
+            }
+            free(finishedProcesses);
+            pthread_mutex_destroy(&mutex_lock);
+            pthread_cond_destroy(&scheduler_cv);
+            
         } 
         // Input file
         else if (argv[1][0] == 'F' ) {
@@ -442,19 +405,7 @@ int main(int argc, char* argv[]){
                     printf("Error opening the file named %s\n", OUTFILE);
             }
 
-            //ALLP kadar MALLOC
-
             finishedProcesses = malloc(sizeof(struct PCB*) * ALLP);
-            /*
-            printf("File input\n");
-            printf("Arguments:\n");
-            printf("rqLen %d\n", rqLen);
-            printf("ALLP %d\n", ALLP);
-            printf("OUTMODE %d\n", OUTMODE);
-            printf("INFILE %s\n", INFILE);*/
-            
-            //if ( argc == 7) printf("OUTFILE %s\n", OUTFILE);
-
 
             FILE* fp;
             char * line = NULL;
@@ -466,7 +417,6 @@ int main(int argc, char* argv[]){
                 return 0;
             }
             
-            //lineNumber = lineNumber + 1;
             char type[20]; // PL or IAT
             int value1;
             int value2;
@@ -495,17 +445,6 @@ int main(int argc, char* argv[]){
                 lineInt = fscanf(fp,"%s %d %d",type,&value1,&value2);
             }
 
-            /*printf("\nResults in Array:\n");
-            for ( int i = 0; i < ALLP;i++) {
-                printf("PL %d %d %d\n",i,processLengths[i],priorityValues[i]);
-                if( i != ALLP - 1)
-                    printf("IAT %d %d\n",i,interarrivalTimes[i]);
-
-            }*/
-            
-
-            
-            //printf("\nThe file %s has %d processes\n", INFILE, ALLP);
             fclose(fp);
             
             struct generatorArgs generator_args;
@@ -554,6 +493,12 @@ int main(int argc, char* argv[]){
             else if(isOutfile == 1)
                 fprintf(fptr, "avg waiting time: %f\n", totalWaitingTime / ALLP);
 
+            for(int i = 0; i < ALLP; i++){
+                free(finishedProcesses[i]);
+            }
+            free(finishedProcesses);
+            pthread_mutex_destroy(&mutex_lock);
+            pthread_cond_destroy(&scheduler_cv);
 
 
         }
