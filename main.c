@@ -24,6 +24,10 @@ struct timeval programStartTime;
 
 struct PCB** finishedProcesses;
 
+char* OUTFILE;
+int isOutfile = 0;
+FILE* fptr = NULL;
+
 
 void* schedulerThread( void* arg_ptr){
     pthread_mutex_lock(&mutex_lock);
@@ -36,8 +40,14 @@ void* schedulerThread( void* arg_ptr){
             struct PCB* minVruntime;
             
             getMinCFS(runqueue, &minVruntime);
-            if(OUTMODE == 3)
-                printf("Process %d is selected for CPU\n", minVruntime->pid);
+            if(OUTMODE == 3){
+                if(isOutfile == 0)
+                    printf("Process %d is selected for CPU\n", minVruntime->pid);
+                else if( isOutfile == 1){
+                    fprintf(fptr, "Process %d is selected for CPU\n", minVruntime->pid);
+                }
+            }
+                
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
@@ -68,8 +78,13 @@ void* processThread( void* arg_ptr){
 
     //printf("Pid %d arrival time: %f\n", pcb->pid, pcb->arrivalTime);
     pthread_mutex_lock(&mutex_lock);
-    if(OUTMODE == 3)
-        printf("Process %d inserted to runqueue\n", pcb->pid);
+    if(OUTMODE == 3){
+        if(isOutfile == 0)
+            printf("Process %d inserted to runqueue\n", pcb->pid);
+        else if( isOutfile == 1)
+            fprintf(fptr, "Process %d inserted to runqueue\n", pcb->pid);
+    }
+        
     insert(&runqueue, pcb);
     //printList(runqueue);
 
@@ -107,16 +122,28 @@ void* processThread( void* arg_ptr){
             gettimeofday(&curTime, NULL);
             float myCurrentTimeForNow = 1000 * ((curTime.tv_sec - programStartTime.tv_sec) + 
                                                             ((curTime.tv_usec - programStartTime.tv_usec)/1000000.0));
-            printf("%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
+    
+            if(isOutfile == 0)        
+                printf("%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
+            else if( isOutfile == 1)
+                fprintf( fptr, "%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
         }
-        if(OUTMODE == 3)
-            printf("Process %d RUNNNING in CPU\n", pcb->pid);
+        if(OUTMODE == 3){
+            if(isOutfile == 0)        
+                printf("Process %d RUNNNING in CPU\n", pcb->pid);
+            else if( isOutfile == 1)
+                fprintf( fptr, "Process %d RUNNNING in CPU\n", pcb->pid);
+        }
+            
         
         usleep(timeslice * 1000);
 
-        if(OUTMODE == 3)
-            printf("Process %d expired timeslice %d\n", pcb->pid, timeslice);
-
+        if(OUTMODE == 3){
+            if(isOutfile == 0)        
+                printf("Process %d expired timeslice %d\n", pcb->pid, timeslice);
+            else if( isOutfile == 1)
+                fprintf( fptr, "Process %d expired timeslice %d\n", pcb->pid, timeslice);
+        }
         //increment total time spent
         pcb->totalTimeSpent = pcb->totalTimeSpent + timeslice;
         pcb->contextSwitch = pcb->contextSwitch + 1;
@@ -145,15 +172,24 @@ void* processThread( void* arg_ptr){
         }
         else{
             //SONDA DEQUEUED NODE'U FREE LEMEYİ DENE
-            if(OUTMODE == 3)
-                printf("Process %d inserted to runqueue\n", pcb->pid);
+            if(OUTMODE == 3){
+                if(isOutfile == 0)        
+                    printf("Process %d inserted to runqueue\n", pcb->pid);
+                else if( isOutfile == 1)
+                    fprintf( fptr, "Process %d inserted to runqueue\n", pcb->pid);
+            }
+            
             insert(&runqueue, dequeuedNode->pcb);
             //printList(runqueue);
         }
         pthread_cond_signal(&scheduler_cv);
     }
-    if(OUTMODE == 3)
-        printf("Process %d finished\n", pcb->pid);
+    if(OUTMODE == 3){
+        if(isOutfile == 0)        
+            printf("Process %d finished\n", pcb->pid);
+        else if( isOutfile == 1)
+            fprintf( fptr, "Process %d finished\n", pcb->pid);
+    }
     pthread_mutex_unlock(&mutex_lock);
 
     
@@ -184,8 +220,12 @@ void* generatorThread(void* arg_ptr){
 
         pthread_mutex_lock(&mutex_lock);
         if( runqueueSize < rqLen){
-            if(OUTMODE == 3)
-                printf("Process %d created\n", processThreadArgs.pid);
+            if(OUTMODE == 3){
+                if(isOutfile == 0)        
+                    printf("Process %d created\n", processThreadArgs.pid);
+                else if( isOutfile == 1)
+                    fprintf( fptr, "Process %d created\n", processThreadArgs.pid);
+            }
             int ret = pthread_create(&processThreadIds[i], NULL, processThread, (void*) &processThreadArgs);
             
             pthread_mutex_unlock(&mutex_lock);
@@ -216,12 +256,6 @@ int main(int argc, char* argv[]){
         pthread_mutex_init(&mutex_lock, NULL);
         pthread_cond_init(&scheduler_cv, NULL);
 
-
-
-
-
-
-
         // Command Line
 
         //ALLP kadar MALLOC YAPMAYI UNUTMA!!!!!!!!!!!
@@ -239,8 +273,13 @@ int main(int argc, char* argv[]){
             rqLen = atoi(argv[12]);
             ALLP = atoi(argv[13]);
             OUTMODE = atoi(argv[14]);
-            char* OUTFILE;
-            if ( argc == 16) OUTFILE = argv[15];
+            if ( argc == 16){
+                OUTFILE = argv[15];
+                isOutfile = 1;
+                fptr = fopen(OUTFILE, "w");
+                if(fptr == NULL)
+                    printf("Error opening the file named %s\n", OUTFILE);
+            }
             
             printf("\nCommand line\n");
             printf("Arguments:\n");
@@ -259,6 +298,18 @@ int main(int argc, char* argv[]){
             printf("OUTMODE %d\n", OUTMODE);
             if ( argc == 16) printf("OUTFILE %s\n", OUTFILE);
 
+            //ALLP kadar MALLOC
+
+            finishedProcesses = malloc(sizeof(struct PCB*) * ALLP);
+
+            int processLengths[ALLP];
+            int plCount = 0;
+            int priorityValues[ALLP];
+            int pvCount = 0;
+            int interarrivalTimes[ALLP-1];
+            int iaCount = 0;
+
+
 
         } 
         // Input file
@@ -268,8 +319,14 @@ int main(int argc, char* argv[]){
             ALLP = atoi(argv[3]);
             OUTMODE = atoi(argv[4]);
             char* INFILE = argv[5];
-            char* OUTFILE;
-            if ( argc == 7) OUTFILE = argv[6];
+            
+            if ( argc == 7){
+                OUTFILE = argv[6];
+                isOutfile = 1;
+                fptr = fopen(OUTFILE, "w");
+                if(fptr == NULL)
+                    printf("Error opening the file named %s\n", OUTFILE);
+            }
 
             //ALLP kadar MALLOC
 
@@ -281,7 +338,8 @@ int main(int argc, char* argv[]){
             printf("ALLP %d\n", ALLP);
             printf("OUTMODE %d\n", OUTMODE);
             printf("INFILE %s\n", INFILE);*/
-            if ( argc == 7) printf("OUTFILE %s\n", OUTFILE);
+            
+            //if ( argc == 7) printf("OUTFILE %s\n", OUTFILE);
 
 
             FILE* fp;
@@ -359,21 +417,34 @@ int main(int argc, char* argv[]){
             pthread_join(thr_id[0], NULL);
             pthread_join(thr_id[1], NULL);
             float totalWaitingTime = 0;
-            printf("%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
+
+
+            if(isOutfile == 0)
+                printf("%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
+            else if(isOutfile == 1)
+                fprintf(fptr, "%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
             for(int i = 0; i < ALLP; i++){
                 struct PCB* curPCB = finishedProcesses[i];
-                printf("%5d %15f %15f %5d %8d %15f %15f %10d\n",
-                            curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
-                            curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
+                if(isOutfile == 0)
+                    printf("%5d %15f %15f %5d %8d %15f %15f %10d\n",
+                                curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
+                                curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
+                else if( isOutfile == 1)
+                    fprintf(fptr, "%5d %15f %15f %5d %8d %15f %15f %10d\n",
+                                curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
+                                curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
                 totalWaitingTime = totalWaitingTime + curPCB->queueWaitTime;
             }
-            printf("avg waiting time: %f\n", totalWaitingTime / ALLP);
-            
+            if(isOutfile == 0)
+                printf("avg waiting time: %f\n", totalWaitingTime / ALLP);
+            else if(isOutfile == 1)
+                fprintf(fptr, "avg waiting time: %f\n", totalWaitingTime / ALLP);
 
 
 
         }
-
+        if(isOutfile == 1)
+            fclose(fptr);
     }
 
 
