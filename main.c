@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "linkedList.c"
 #include <sys/time.h>
+#include <math.h>
 
 const int MINIMUM_GRANULARITY = 10;
 const int SCHED_LATENCY = 100;
@@ -303,11 +304,124 @@ int main(int argc, char* argv[]){
             finishedProcesses = malloc(sizeof(struct PCB*) * ALLP);
 
             int processLengths[ALLP];
-            int plCount = 0;
             int priorityValues[ALLP];
-            int pvCount = 0;
             int interarrivalTimes[ALLP-1];
-            int iaCount = 0;
+            srand(time(NULL));
+            //RANDOM PRIO VALUES
+            for(int i = 0; i < ALLP; i++){
+                priorityValues[i] = (rand() % (maxPrio - minPrio + 1) + minPrio);
+            }
+            /*
+            for(int i = 0; i < ALLP; i++){
+                printf("Prio of %d: %d\n", i, priorityValues[i]);
+            }*/
+            //PROCESS LENGTH
+            if(strcmp(distPL, "fixed") == 0){
+                for(int i = 0; i < ALLP; i++){
+                    processLengths[i] = avgPL;
+                }
+            }
+            else if( strcmp(distPL, "uniform") == 0){
+                for(int i = 0; i < ALLP; i++){
+                    processLengths[i] = (rand() % (maxPL - minPL + 1) + minPL);
+                }
+                
+            }
+            else if( strcmp(distPL, "exponential") == 0){
+                double lambda = 1.0/avgPL;
+                
+
+                for(int i = 0; i < ALLP; i++){
+                    double x = minPL - 2;
+                    while( x <= minPL || x >= maxPL){
+                        double u = (double)rand() / (double)RAND_MAX;
+                        x = ((-1.0) * log(1-u))/lambda;
+                    }
+                    processLengths[i] = (int) round(x);
+                }    
+            }
+            for(int i = 0; i < ALLP; i++){
+                printf("PL of %d: %d\n",i, processLengths[i]);
+            }
+
+
+            //IAT
+            if(strcmp(distIAT, "fixed") == 0){
+                for(int i = 0; i < ALLP-1; i++){
+                    interarrivalTimes[i] = avgIAT;
+                }
+            }
+            else if( strcmp(distIAT, "uniform") == 0){
+                for(int i = 0; i < ALLP - 1; i++){
+                    interarrivalTimes[i] = (rand() % (maxIAT - minIAT + 1) + minIAT);
+                }
+                
+            }
+            else if( strcmp(distIAT, "exponential") == 0){
+                double lambda = 1.0/avgIAT;
+                
+
+                for(int i = 0; i < ALLP - 1; i++){
+                    double x = minIAT - 2;
+                    while( x <= minIAT || x >= maxIAT){
+                        double u = (double)rand() / (double)RAND_MAX;
+                        x = ((-1.0) * log(1-u))/lambda;
+                    }
+                    interarrivalTimes[i] = (int) round(x);
+                }    
+            }
+            for(int i = 0; i < ALLP - 1; i++){
+                printf("IAT %d is: %d\n", i, interarrivalTimes[i]);
+            }
+
+            
+            struct generatorArgs generator_args;
+            generator_args.processLengths = processLengths;
+            generator_args.interarrivalTimes = interarrivalTimes;
+            generator_args.priorityValues = priorityValues;
+            generator_args.plCount = ALLP;
+            
+            pthread_t thr_id[2];
+            int ret = pthread_create(&thr_id[0], NULL, schedulerThread, (void*) NULL);
+
+            if( ret){
+                printf("ERROR creating scheduler thread\n");
+            }
+            ret = pthread_create(&thr_id[1], NULL, generatorThread, (void*) &generator_args);
+
+            if( ret){
+                printf("ERROR creating generator thread\n");
+            }
+
+            
+
+            pthread_join(thr_id[0], NULL);
+            pthread_join(thr_id[1], NULL);
+            float totalWaitingTime = 0;
+
+
+            if(isOutfile == 0)
+                printf("%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
+            else if(isOutfile == 1)
+                fprintf(fptr, "%5s %15s %15s %5s %8s %15s %15s %10s\n", "pid", "arv" , "dept" , "prio","cpu" ,"waitr" ,"turna","cs");
+            for(int i = 0; i < ALLP; i++){
+                struct PCB* curPCB = finishedProcesses[i];
+                if(isOutfile == 0)
+                    printf("%5d %15f %15f %5d %8d %15f %15f %10d\n",
+                                curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
+                                curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
+                else if( isOutfile == 1)
+                    fprintf(fptr, "%5d %15f %15f %5d %8d %15f %15f %10d\n",
+                                curPCB->pid, curPCB->arrivalTime, curPCB->finishTime, curPCB->priority, curPCB->totalTimeSpent, curPCB->queueWaitTime,
+                                curPCB->finishTime - curPCB->arrivalTime, curPCB->contextSwitch);
+                totalWaitingTime = totalWaitingTime + curPCB->queueWaitTime;
+            }
+            if(isOutfile == 0)
+                printf("avg waiting time: %f\n", totalWaitingTime / ALLP);
+            else if(isOutfile == 1)
+                fprintf(fptr, "avg waiting time: %f\n", totalWaitingTime / ALLP);
+
+
 
 
 
@@ -359,7 +473,7 @@ int main(int argc, char* argv[]){
             int lineInt = fscanf(fp,"%s %d %d",type,&value1,&value2);
 
             // Values as arrays from input file
-            int processLengths[ALLP ];
+            int processLengths[ALLP];
             int plCount = 0;
             int priorityValues[ALLP];
             int pvCount = 0;

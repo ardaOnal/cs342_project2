@@ -14,6 +14,10 @@ Process 1 expired timeslice 100
 Process 1 inserted to runqueue
 Process 1 is selected for CPU
 Process 2 created
+Process 1 RUNNNING in CPU
+Process 1 expired timeslice 100
+Process 1 inserted to runqueue
+Process 1 is selected for CPU
 Process 2 inserted to runqueue
 Process 1 RUNNNING in CPU
 Process 1 expired timeslice 44
@@ -43,12 +47,9 @@ Process 1 RUNNNING in CPU
 Process 1 expired timeslice 100
 Process 1 inserted to runqueue
 Process 1 is selected for CPU
-Process 1 RUNNNING in CPU
-Process 1 expired timeslice 100
-Process 1 inserted to runqueue
-Process 1 is selected for CPU
 Process 3 created
 Process 3 inserted to runqueue
+Process 3 is selected for CPU
 Process 1 RUNNNING in CPU
 Process 1 expired timeslice 39
 Process 1 inserted to runqueue
@@ -63,21 +64,20 @@ Process 3 finished
 Process 1 is selected for CPU
 Process 4 created
 Process 4 inserted to runqueue
+Process 4 is selected for CPU
+Process 4 RUNNNING in CPU
+Process 4 expired timeslice 33
+Process 4 inserted to runqueue
+Process 4 is selected for CPU
+Process 4 RUNNNING in CPU
+Process 4 expired timeslice 33
+Process 4 inserted to runqueue
+Process 4 is selected for CPU
 Process 1 RUNNNING in CPU
 Process 1 expired timeslice 66
 Process 1 inserted to runqueue
-Process 4 is selected for CPU
-Process 4 RUNNNING in CPU
-Process 4 expired timeslice 33
-Process 4 inserted to runqueue
-Process 4 is selected for CPU
 Process 5 created
-Process 4 RUNNNING in CPU
-Process 4 expired timeslice 33
-Process 4 inserted to runqueue
-Process 4 is selected for CPU
 Process 5 inserted to runqueue
-Process 5 is selected for CPU
 Process 4 RUNNNING in CPU
 Process 4 expired timeslice 18
 Process 4 inserted to runqueue
@@ -129,10 +129,6 @@ Process 1 is selected for CPU
 Process 6 created
 Process 6 inserted to runqueue
 Process 6 is selected for CPU
-Process 6 RUNNNING in CPU
-Process 6 expired timeslice 60
-Process 6 inserted to runqueue
-Process 6 is selected for CPU
 Process 1 RUNNNING in CPU
 Process 1 expired timeslice 39
 Process 1 inserted to runqueue
@@ -141,15 +137,24 @@ Process 6 RUNNNING in CPU
 Process 6 expired timeslice 60
 Process 6 inserted to runqueue
 Process 6 is selected for CPU
-Process 7 created
-Process 7 inserted to runqueue
 Process 6 RUNNNING in CPU
-Process 6 expired timeslice 10
+Process 6 expired timeslice 60
 Process 6 inserted to runqueue
+Process 6 is selected for CPU
+Process 6 RUNNNING in CPU
+Process 6 expired timeslice 60
+Process 6 inserted to runqueue
+Process 7 created
+Process 6 is selected for CPU
+Process 7 inserted to runqueue
 Process 7 is selected for CPU
 Process 7 RUNNNING in CPU
 Process 7 expired timeslice 98
 Process 7 inserted to runqueue
+Process 7 is selected for CPU
+Process 6 RUNNNING in CPU
+Process 6 expired timeslice 10
+Process 6 inserted to runqueue
 Process 7 is selected for CPU
 Process 7 RUNNNING in CPU
 Process 7 expired timeslice 98
@@ -168,7 +173,15 @@ Process 6 expired timeslice 60
 Process 6 inserted to runqueue
 Process 6 is selected for CPU
 Process 8 created
+Process 6 RUNNNING in CPU
+Process 6 expired timeslice 60
+Process 6 inserted to runqueue
+Process 6 is selected for CPU
 Process 8 inserted to runqueue
+Process 8 is selected for CPU
+Process 6 RUNNNING in CPU
+Process 6 expired timeslice 40
+Process 6 inserted to runqueue
 Process 8 is selected for CPU
 Process 8 RUNNNING in CPU
 Process 8 expired timeslice 32
@@ -235,19 +248,7 @@ Process 6 expired timeslice 60
 Process 6 inserted to runqueue
 Process 6 is selected for CPU
 Process 6 RUNNNING in CPU
-Process 6 expired timeslice 60
-Process 6 inserted to runqueue
-Process 6 is selected for CPU
-Process 6 RUNNNING in CPU
-Process 6 expired timeslice 60
-Process 6 inserted to runqueue
-Process 6 is selected for CPU
-Process 6 RUNNNING in CPU
-Process 6 expired timeslice 60
-Process 6 inserted to runqueue
-Process 6 is selected for CPU
-Process 6 RUNNNING in CPU
-Process 6 expired timeslice 30
+Process 6 expired timeslice 50
 Process 6 finished
 Process 1 is selected for CPU
 Process 1 RUNNNING in CPU
@@ -270,12 +271,12 @@ Process 1 RUNNNING in CPU
 Process 1 expired timeslice 12
 Process 1 finished
   pid             arv            dept  prio      cpu           waitr           turna         cs
-    1        0.662000     3516.922119     2     1400     2116.260010     3516.260010         16
-    2      301.713989      547.127991     1      200       45.414001      245.414001          3
-    3      848.294983      988.017029     0      100       39.722046      139.722046          1
-    4      988.302002     1458.167969     5      200      269.865967      469.865967          6
-    5     1088.161011     1341.068970     1      200       52.907959      252.907959          4
-    6     1658.796021     3104.197021     0     1000      445.401001     1445.401001         17
-    7     1818.724976     2029.461060   -20      200       10.736084      210.736084          2
-    8     2150.092041     2351.288086     1      200        1.196045      201.196045          6
-avg waiting time: 372.687866
+    1       86.942001     3978.323975     2     1400     2491.382080     3891.382080         16
+    2      452.864990      803.778015     1      200      150.913025      350.913025          3
+    3     1064.711060     1204.774048     0      100       40.062988      140.062988          1
+    4     1253.545044     1780.854980     5      200      327.309937      527.309937          6
+    5     1441.666992     1662.616943     1      200       20.949951      220.949951          4
+    6     2002.683960     3563.352051     0     1000      560.668091     1560.668091         17
+    7     2266.579102     2479.330078   -20      200       12.750977      212.750977          2
+    8     2663.614990     2967.809082     1      200      104.194092      304.194092          6
+avg waiting time: 463.528900
