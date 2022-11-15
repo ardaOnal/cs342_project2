@@ -45,7 +45,7 @@ void* schedulerThread( void* arg_ptr){
                     fprintf(fptr, "Process %d is selected for CPU\n", minVruntime->pid);
                 }
             }
-                
+            
             pthread_cond_signal(&(minVruntime->cv));
         }       
     }
@@ -81,7 +81,6 @@ void* processThread( void* arg_ptr){
         
     insert(&runqueue, pcb);
     pthread_cond_signal(&scheduler_cv);
-
     while(pcb->totalTimeSpent < pcb->processLength){
         pthread_cond_wait(&(pcb->cv), &(mutex_lock));
         
@@ -103,9 +102,9 @@ void* processThread( void* arg_ptr){
                                                             ((curTime.tv_usec - programStartTime.tv_usec)/1000000.0));
     
             if(isOutfile == 0)        
-                printf("%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
+                printf("%f %d RUNNING %d\n", myCurrentTimeForNow, pcb->pid, timeslice);
             else if( isOutfile == 1)
-                fprintf( fptr, "%f %d RUNNING\n", myCurrentTimeForNow, pcb->pid);
+                fprintf( fptr, "%f %d RUNNING %d\n", myCurrentTimeForNow, pcb->pid, timeslice);
         }
         if(OUTMODE == 3){
             if(isOutfile == 0)        
@@ -144,6 +143,7 @@ void* processThread( void* arg_ptr){
             finishedProcesses[pcb->pid - 1] = pcb;
             
             pthread_cond_destroy(&(pcb->cv));
+            
             pthread_cond_signal(&scheduler_cv);
             break;
         }
@@ -159,7 +159,7 @@ void* processThread( void* arg_ptr){
         }
         if(dequeuedNode){
             free(dequeuedNode);
-        }   
+        }  
         pthread_cond_signal(&scheduler_cv);
     }
     
